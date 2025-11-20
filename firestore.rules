@@ -1,158 +1,176 @@
-rules_version = '2';
-
 /**
- * This ruleset enforces a strict user-ownership security model for the
- * Personal Investment Sage application.
+ * Core Philosophy: This ruleset enforces a strict user-ownership model. All user data,
+ * including investments, alerts, and portfolio snapshots, is stored in subcollections
+ * under a unique user document. This ensures that users can only ever access their own
+ * information, providing strong data privacy and isolation by default.
  *
- * Core Philosophy:
- * The fundamental principle is data isolation. Every piece of user-generated
- * content is strictly owned by and accessible only to the user who created it.
- * There is no concept of public data or shared access in this model.
- *
- * Data Structure:
- * All user-specific data, including investments, alerts, and portfolio
- * snapshots, is organized hierarchically within a user's own data tree.
- * The structure is `/users/{userId}/{subcollection}/{documentId}`.
- * This path-based ownership is the primary mechanism for enforcing security.
+ * Data Structure: All data is organized hierarchically under the `/users/{userId}` path.
+ * This path-based scoping is the foundation of the security model, making rules simple,
+ * performant, and easy to audit.
+ *   - /users/{userId} - Contains the user's profile.
+ *   - /users/{userId}/investments/{investmentId} - User's private investment records.
+ *   - /users/{userId}/alerts/{alertId} - User-specific financial alerts.
+ *   - /users/{userId}/snapshots/{snapshotId} - Historical portfolio snapshots for the user.
  *
  * Key Security Decisions:
- * - User Enumeration is Disallowed: Listing the top-level `/users`
- *   collection is forbidden to protect user privacy.
- * - Strict Path-Based Access: All rules rely on the `{userId}` wildcard in
- *   the document path, comparing it against the authenticated user's UID.
- * - No Cross-User Access: There are no rules that permit one user to read
- *   or write another user's data.
- * - Relational Integrity: On document creation, rules enforce that the
- *   internal `userId` or `id` field matches the `userId` from the path,
- *   ensuring data consistency. On update, these ownership fields are immutable.
- * - Denormalization for Authorization: Security is maintained by checking
- *   the document path against the user's auth token. This avoids slow and
- *   costly `get()` calls to other documents for authorization checks.
+ * - User Data Isolation: All rules are predicated on matching the authenticated user's
+ *   UID with the {userId} wildcard in the document path. This prevents any user from
+ *   accessing another user's data tree.
+ * - No Global Access: There are no admin roles or globally readable collections.
+ *   Access is granted on a per-user, per-document basis.
+ * - Disallowed User Listing: There is no rule for the `/users` collection path, which
+ *   explicitly prevents clients from querying and listing all users in the application.
+ * - Relational Integrity: On creation, documents must contain a user ID field that
+ *   matches the user ID in the path. This field is enforced as immutable on update,
+ *   preventing documents from being "moved" between users.
+ *
+ * Denormalization for Authorization: The security model relies on path-based ownership.
+ * The `userId` is present in the document path for all user-specific data. This avoids
+ * the need for any slow and costly `get()` or `exists()` calls to other documents
+ * to verify ownership, resulting in highly performant security rules.
+ *
+ * Structural Segregation: The entire data model is built on structural segregation.
+ * Each user's data is contained within its own document tree, completely isolated
+ * from other users. This is the most secure and performant way to handle private data.
  */
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // Helper Functions
-    // ----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     /**
-     * Returns true if the user is authenticated.
+     * Checks if the user is authenticated.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * Returns true if the requesting user's UID matches the provided userId.
+     * Checks if the authenticated user's UID matches the provided userId.
      * This is the core function for enforcing data ownership.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
+
     /**
-     * Returns true if the user is the owner AND the document already exists.
-     * Used for safe update and delete operations.
+     * Checks if a document already exists. Used for update/delete operations.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+
+
+    /**
+     * Verifies the owner of an existing document.
+     * Ensures update/delete operations only target existing documents owned by the user.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * Validates that the User document being created has an 'id' field
-     * that matches the document's ID (which is the user's UID).
-     */
-    function hasValidUserDataOnCreate(userId) {
-      return request.resource.data.id == userId;
+      return isOwner(userId) && isExistingDoc();
     }
     
     /**
-     * Enforces that the 'id' field of a User document cannot be changed
-     * after it has been created.
+     * Validates that the user document's internal 'id' field matches the document's
+     * path ID upon creation.
      */
-    function isUserDataImmutable() {
-      return request.resource.data.id == resource.data.id;
+    function isValidUserDocOnCreate(userId) {
+        return request.resource.data.id == userId;
     }
 
     /**
-     * Validates that a subcollection document (e.g., Investment) being created
-     * has a 'userId' field that correctly points back to its parent user.
+     * Enforces immutability of the user document's internal 'id' field during updates.
      */
-    function hasValidOwnershipLinkOnCreate(userId) {
-      return request.resource.data.userId == userId;
-    }
-    
-    /**
-     * Enforces that the 'userId' field of a subcollection document
-     * cannot be changed after it has been created, preventing re-assignment.
-     */
-    function isOwnershipLinkImmutable() {
-      return request.resource.data.userId == resource.data.userId;
+    function isUserDocImmutableOnUpdate() {
+        return request.resource.data.id == resource.data.id;
     }
 
-    // ----------------------------------------------------------------------
+    /**
+     * Validates that a subcollection document's internal 'userId' field matches the
+     * path ID of its parent user upon creation.
+     */
+    function isValidSubcollectionDocOnCreate(userId) {
+        return request.resource.data.userId == userId;
+    }
+
+    /**
+     * Enforces immutability of a subcollection document's internal 'userId' field
+     * during updates, preventing it from being reassigned to another user.
+     */
+    function isSubcollectionDocImmutableOnUpdate() {
+        return request.resource.data.userId == resource.data.userId;
+    }
+
+    // ------------------------------------------------------------------------
     // Collection Rules
-    // ----------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     /**
-     * @description Controls access to a user's own profile document.
+     * @description Manages user profile documents. A user can create their own profile,
+     *   and can read, update, or delete it thereafter.
      * @path /users/{userId}
-     * @allow (create) An authenticated user creating their own user document.
-     * @deny (list) Any user, authenticated or not, trying to list all users.
-     * @principle Restricts access to a user's own data tree and allows self-creation of a profile.
+     * @allow (create) A new user with auth UID 'user_abc' creating their own document at /users/user_abc.
+     * @deny (create) A user with auth UID 'user_abc' trying to create a document at /users/user_xyz.
+     * @deny (get) A user trying to read another user's profile.
+     * @principle Restricts access to a user's own profile document and ensures path-data consistency.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && hasValidUserDataOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isUserDataImmutable();
+      allow create: if isOwner(userId) && isValidUserDocOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isUserDocImmutableOnUpdate();
       allow delete: if isExistingOwner(userId);
-    }
-    
-    /**
-     * @description Manages access to a user's private list of investments.
-     * @path /users/{userId}/investments/{investmentId}
-     * @allow (get) User 'user123' reading `/users/user123/investments/inv456`.
-     * @deny (get) User 'userABC' trying to read `/users/user123/investments/inv456`.
-     * @principle Enforces document ownership for all operations within a user-specific subcollection.
-     */
-    match /users/{userId}/investments/{investmentId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasValidOwnershipLinkOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isOwnershipLinkImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
-    
-    /**
-     * @description Manages access to a user's private list of alerts.
-     * @path /users/{userId}/alerts/{alertId}
-     * @allow (list) User 'user123' listing all documents at `/users/user123/alerts`.
-     * @deny (create) User 'userABC' trying to create a document at `/users/user123/alerts/alert789`.
-     * @principle Enforces document ownership for all operations within a user-specific subcollection.
-     */
-    match /users/{userId}/alerts/{alertId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasValidOwnershipLinkOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isOwnershipLinkImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
-    
-    /**
-     * @description Manages access to a user's private portfolio snapshots.
-     * @path /users/{userId}/snapshots/{snapshotId}
-     * @allow (delete) User 'user123' deleting `/users/user123/snapshots/snap010`.
-     * @deny (update) User 'userABC' trying to update `/users/user123/snapshots/snap010`.
-     * @principle Enforces document ownership for all operations within a user-specific subcollection.
-     */
-    match /users/{userId}/snapshots/{snapshotId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasValidOwnershipLinkOnCreate(userId);
-      allow update: if isExistingOwner(userId) && isOwnershipLinkImmutable();
-      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Manages a user's private list of investments. Access is restricted to the owner.
+       * @path /users/{userId}/investments/{investmentId}
+       * @allow (create) An authenticated user creating an investment document within their own subcollection.
+       * @allow (list) An authenticated user listing all investments at /users/{their-own-uid}/investments.
+       * @deny (get) A user trying to read an investment document from another user's subcollection.
+       * @principle Enforces path-based ownership for all documents in a user's private subcollection.
+       */
+      match /investments/{investmentId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionDocOnCreate(userId);
+        allow update: if isExistingOwner(userId) && isSubcollectionDocImmutableOnUpdate();
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Manages a user's private alerts. Access is restricted to the owner.
+       * @path /users/{userId}/alerts/{alertId}
+       * @allow (create) An authenticated user creating an alert within their own subcollection.
+       * @allow (list) An authenticated user listing all alerts at /users/{their-own-uid}/alerts.
+       * @deny (get) A user trying to read an alert from another user's subcollection.
+       * @principle Enforces path-based ownership for all documents in a user's private subcollection.
+       */
+      match /alerts/{alertId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionDocOnCreate(userId);
+        allow update: if isExistingOwner(userId) && isSubcollectionDocImmutableOnUpdate();
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Manages a user's private portfolio snapshots. Access is restricted to the owner.
+       * @path /users/{userId}/snapshots/{snapshotId}
+       * @allow (create) An authenticated user creating a snapshot within their own subcollection.
+       * @allow (list) An authenticated user listing all snapshots at /users/{their-own-uid}/snapshots.
+       * @deny (get) A user trying to read a snapshot from another user's subcollection.
+       * @principle Enforces path-based ownership for all documents in a user's private subcollection.
+       */
+      match /snapshots/{snapshotId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionDocOnCreate(userId);
+        allow update: if isExistingOwner(userId) && isSubcollectionDocImmutableOnUpdate();
+        allow delete: if isExistingOwner(userId);
+      }
     }
   }
 }
