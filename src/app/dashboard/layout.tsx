@@ -13,6 +13,7 @@ import {
   Briefcase,
   LogOut,
   User,
+  Settings,
 } from 'lucide-react';
 
 import {
@@ -40,6 +41,7 @@ const navItems = [
   { href: '/dashboard/investments', icon: Briefcase, label: 'Investimentos' },
   { href: '/dashboard/assistant', icon: MessageSquare, label: 'Assistente' },
   { href: '/dashboard/alerts', icon: Bell, label: 'Alertas' },
+  { href: '/dashboard/settings', icon: Settings, label: 'Configurações' },
 ];
 
 export default function DashboardLayout({
