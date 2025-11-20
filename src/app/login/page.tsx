@@ -1,19 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  type AuthError,
+} from 'firebase/auth';
 import { useAuth, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Logo } from '@/components/icons';
-
-const provider = new GoogleAuthProvider();
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const auth = useAuth();
   const { user, loading } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!loading && user) {
@@ -21,23 +36,60 @@ export default function LoginPage() {
     }
   }, [user, loading, router]);
 
-  const handleSignIn = async () => {
-    if (auth) {
-      try {
-        await signInWithPopup(auth, provider);
-        router.push('/dashboard');
-      } catch (error) {
-        console.error('Error signing in with Google', error);
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !email || !password) {
+        toast({
+            variant: "destructive",
+            title: "Erro de Validação",
+            description: "Por favor, preencha o email e a senha.",
+        });
+        return;
+    };
+    setIsSubmitting(true);
+
+    try {
+      // First, try to sign in
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push('/dashboard');
+    } catch (error) {
+      const authError = error as AuthError;
+      // If user not found, create a new user
+      if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential') {
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+          toast({
+            title: "Conta Criada!",
+            description: "Sua conta foi criada com sucesso. Bem-vindo!",
+          });
+          router.push('/dashboard');
+        } catch (creationError) {
+            const creationAuthError = creationError as AuthError;
+            toast({
+                variant: "destructive",
+                title: "Erro ao Criar Conta",
+                description: creationAuthError.message,
+            });
+        }
+      } else {
+        // Handle other errors
+         toast({
+            variant: "destructive",
+            title: "Erro de Login",
+            description: authError.message,
+        });
       }
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
   if (loading || user) {
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center">
-            <Logo className="h-16 w-16 mb-4 animate-pulse" />
-            <p className="text-muted-foreground">Carregando...</p>
-        </div>
+      <div className="flex min-h-screen flex-col items-center justify-center">
+        <Logo className="h-16 w-16 mb-4 animate-pulse" />
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
     );
   }
 
@@ -48,14 +100,37 @@ export default function LoginPage() {
           <Logo className="mx-auto h-12 w-12 mb-4" />
           <CardTitle className="text-2xl">Bem-vindo!</CardTitle>
           <CardDescription>
-            Entre com sua conta do Google para continuar.
+            Entre com seu email e senha para continuar. Se a conta não existir, ela será criada.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" onClick={handleSignIn}>
-            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 23.4 172.9 62.3l-68.6 68.6c-20.5-19.1-46.9-30.8-76.7-30.8-59.9 0-108.4 48.5-108.4 108.4s48.5 108.4 108.4 108.4c63.8 0 99.6-43.2 103.2-66.3H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path></svg>
-            Entrar com o Google
-          </Button>
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Senha</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                placeholder="********"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Entrando...' : 'Entrar'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
