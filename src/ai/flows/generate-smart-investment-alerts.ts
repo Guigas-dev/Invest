@@ -65,26 +65,24 @@ const prompt = ai.definePrompt({
   Format the output as a JSON array of alerts, where each alert has a type and message field.
 
   Example:
-  ```json
   {
     "alerts": [
       {
         "type": "High Volatility",
         "message": "Asset XYZ is experiencing high volatility. Consider rebalancing your portfolio.",
-        "asset": "XYZ",
+        "asset": "XYZ"
       },
       {
         "type": "Excessive Concentration",
-        "message": "Your portfolio is heavily concentrated in the tech sector. Diversify to reduce risk.",
+        "message": "Your portfolio is heavily concentrated in the tech sector. Diversify to reduce risk."
       },
       {
         "type": "Maturity Reminder",
         "message": "Your bond XYZ is maturing on 2024-12-31.",
-        "asset": "XYZ",
-      },
+        "asset": "XYZ"
+      }
     ]
   }
-  ```
   `,
 });
 
