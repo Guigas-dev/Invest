@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CornerDownLeft, Mic, Paperclip } from 'lucide-react';
+import { useUser } from '@/firebase';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -16,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { analyzeInvestmentPortfolio } from '@/ai/flows/analyze-investment-portfolio';
 import { generateSmartInvestmentAlerts } from '@/ai/flows/generate-smart-investment-alerts';
-import { mockInvestments, mockUser } from '@/lib/data';
+import { mockInvestments } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -29,6 +30,7 @@ type Message = {
 export default function AssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useUser();
 
   const handleAnalyze = async () => {
     setIsLoading(true);
@@ -102,10 +104,10 @@ export default function AssistantPage() {
                     )}
                   </CardContent>
                 </Card>
-                {message.sender === 'user' && (
+                {message.sender === 'user' && user && (
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={mockUser.avatarUrl} />
-                    <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
+                    <AvatarImage src={user.photoURL ?? undefined} />
+                    <AvatarFallback>{user.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
                   </Avatar>
                 )}
               </div>

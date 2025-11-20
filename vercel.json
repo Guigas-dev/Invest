@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/genkit-api/:path*",
+      "destination": "/api/genkit/:path*"
+    }
+  ]
+}

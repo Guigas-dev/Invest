@@ -2,20 +2,17 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Bell,
   Home,
-  LineChart,
   MessageSquare,
   Package2,
-  Users,
   Briefcase,
   LogOut,
   User,
   Settings,
 } from 'lucide-react';
-
 import {
   Tooltip,
   TooltipContent,
@@ -33,8 +30,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { mockUser } from '@/lib/data';
 import { Logo } from '@/components/icons';
+import { useAuth, useUser } from '@/firebase';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Resumo' },
@@ -50,6 +47,30 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const auth = useAuth();
+  const { user, loading } = useUser();
+
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  const handleSignOut = async () => {
+    if (auth) {
+        await auth.signOut();
+        router.push('/login');
+    }
+  };
+
+  if (loading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Logo className="h-16 w-16 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -92,8 +113,8 @@ export default function DashboardLayout({
                 className="overflow-hidden rounded-full"
               >
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={mockUser.avatarUrl} alt={mockUser.name} data-ai-hint="person avatar" />
-                  <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={user.photoURL ?? ''} alt={user.displayName ?? ''} data-ai-hint="person avatar" />
+                  <AvatarFallback>{user.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -107,7 +128,7 @@ export default function DashboardLayout({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Sair
               </DropdownMenuItem>
