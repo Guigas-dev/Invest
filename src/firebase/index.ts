@@ -20,7 +20,6 @@ export function getSdks(firebaseApp: FirebaseApp) {
 
 export * from './provider';
 // use-user is exported from provider.ts, so we don't need to export it again.
-// export * from './auth/use-user'; 
 export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
