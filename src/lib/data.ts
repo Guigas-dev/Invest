@@ -1,4 +1,4 @@
-import type { Investment, PortfolioSnapshot, SmartAlert, UserProfile } from './types';
+import type { Investment, PortfolioSnapshot, SmartAlert, UserProfile, BenchmarkData } from './types';
 
 export const mockUser: UserProfile = {
   name: 'Alex Johnson',
@@ -37,4 +37,19 @@ export const mockAlerts: SmartAlert[] = [
   { id: '2', type: 'Excessive Concentration', message: 'Sua carteira está muito concentrada em Ações. Considere diversificar para reduzir riscos.', date: '2024-07-27' },
   { id: '3', type: 'Investment Opportunity', message: "Identificamos uma oportunidade de investimento em 'Tesouro IPCA+ 2035' compatível com seu perfil.", asset: 'Tesouro IPCA+ 2035', date: '2024-07-26' },
   { id: '4', type: 'Maturity Reminder', message: "Seu título 'Tesouro Selic 2025' vencerá em 30 dias.", asset: 'Tesouro Selic 2025', date: '2024-07-25' },
+];
+
+export const mockBenchmarkData: BenchmarkData[] = [
+  { date: 'Jan', portfolio: 0, cdi: 0, ibovespa: 0 },
+  { date: 'Fev', portfolio: 2.1, cdi: 1.1, ibovespa: -1.5 },
+  { date: 'Mar', portfolio: 3.5, cdi: 2.2, ibovespa: 2.0 },
+  { date: 'Abr', portfolio: 5.2, cdi: 3.3, ibovespa: 4.5 },
+  { date: 'Mai', portfolio: 4.8, cdi: 4.4, ibovespa: 3.0 },
+  { date: 'Jun', portfolio: 6.5, cdi: 5.5, ibovespa: 7.0 },
+  { date: 'Jul', portfolio: 7.8, cdi: 6.6, ibovespa: 8.2 },
+  { date: 'Ago', portfolio: 8.2, cdi: 7.7, ibovespa: 6.5 },
+  { date: 'Set', portfolio: 7.5, cdi: 8.8, ibovespa: 5.0 },
+  { date: 'Out', portfolio: 9.1, cdi: 9.9, ibovespa: 9.5 },
+  { date: 'Nov', portfolio: 11.2, cdi: 11.0, ibovespa: 12.0 },
+  { date: 'Dez', portfolio: 13.5, cdi: 12.1, ibovespa: 15.0 },
 ];

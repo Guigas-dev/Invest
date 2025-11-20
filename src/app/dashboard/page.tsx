@@ -8,7 +8,8 @@ import {
 import { DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import PortfolioAllocationChart from './_components/portfolio-allocation-chart';
 import PortfolioEvolutionChart from './_components/portfolio-evolution-chart';
-import { mockInvestments, mockSnapshots } from '@/lib/data';
+import { mockInvestments, mockSnapshots, mockBenchmarkData } from '@/lib/data';
+import PerformanceComparisonChart from './_components/performance-comparison-chart';
 
 export default function DashboardPage() {
   const totalValue = mockInvestments.reduce(
@@ -112,6 +113,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      <PerformanceComparisonChart data={mockBenchmarkData} />
     </div>
   );
 }

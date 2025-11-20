@@ -29,3 +29,10 @@ export type UserProfile = {
   avatarUrl: string;
   riskProfile?: 'Conservador' | 'Moderado' | 'Agressivo';
 };
+
+export type BenchmarkData = {
+  date: string;
+  portfolio: number;
+  cdi: number;
+  ibovespa: number;
+};
