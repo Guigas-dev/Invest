@@ -45,7 +45,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an AI-powered investment assistant that analyzes user investment portfolios, assesses risk profiles, and provides personalized recommendations.
 
   Analyze the user's investment portfolio below:
-  Investments: {{{JSON.stringify investments}}}
+  Investments: {{investments}}
 
   Based on the investment portfolio and the user's financial goals, assess the user's risk profile as Conservative, Moderate, or Aggressive.
   Financial Goals: {{{financialGoals}}}
