@@ -12,6 +12,7 @@ import {
   LogOut,
   User,
   Settings,
+  History,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -36,6 +37,7 @@ import { useAuth, useUser } from '@/firebase';
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Resumo' },
   { href: '/dashboard/investments', icon: Briefcase, label: 'Investimentos' },
+  { href: '/dashboard/contributions', icon: History, label: 'Aportes' },
   { href: '/dashboard/assistant', icon: MessageSquare, label: 'Assistente' },
   { href: '/dashboard/alerts', icon: Bell, label: 'Alertas' },
   { href: '/dashboard/settings', icon: Settings, label: 'Configurações' },
