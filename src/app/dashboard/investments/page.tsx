@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,9 +25,23 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+  } from "@/components/ui/alert-dialog"
 import { Badge } from '@/components/ui/badge';
-import { mockInvestments } from '@/lib/data';
 import type { Investment } from '@/lib/types';
+import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, deleteDoc, doc } from 'firebase/firestore';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 function getBadgeVariant(type: Investment['type']) {
   switch (type) {
@@ -43,7 +59,58 @@ function getBadgeVariant(type: Investment['type']) {
 }
 
 export default function InvestmentsPage() {
+    const firestore = useFirestore();
+    const { user } = useUser();
+    const router = useRouter();
+    const { toast } = useToast();
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [selectedInvestmentId, setSelectedInvestmentId] = useState<string | null>(null);
+  
+    const investmentsQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return collection(firestore, 'users', user.uid, 'investments');
+    }, [user, firestore]);
+
+    const { data: investments, isLoading } = useCollection<Investment>(investmentsQuery);
+
+    const openDeleteDialog = (id: string) => {
+        setSelectedInvestmentId(id);
+        setIsDeleteDialogOpen(true);
+    }
+
+    const handleDelete = async () => {
+        if (!user || !firestore || !selectedInvestmentId) {
+            toast({
+                variant: 'destructive',
+                title: 'Erro',
+                description: 'Não foi possível excluir o ativo.',
+            });
+            return;
+        };
+
+        try {
+            const docRef = doc(firestore, 'users', user.uid, 'investments', selectedInvestmentId);
+            await deleteDoc(docRef);
+            toast({
+                title: 'Ativo Excluído!',
+                description: 'Seu ativo foi removido da carteira.',
+            });
+        } catch (error) {
+            console.error("Error deleting investment: ", error);
+            toast({
+                variant: 'destructive',
+                title: 'Oh, não! Algo deu errado.',
+                description: 'Não foi possível excluir o ativo. Tente novamente.',
+            });
+        } finally {
+            setIsDeleteDialogOpen(false);
+            setSelectedInvestmentId(null);
+        }
+    }
+
+
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -79,11 +146,26 @@ export default function InvestmentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockInvestments.map((investment) => {
+            {isLoading && (
+                <TableRow>
+                    <TableCell colSpan={7} className="text-center">Carregando seus investimentos...</TableCell>
+                </TableRow>
+            )}
+            {!isLoading && investments?.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={7} className="text-center py-10">
+                        <p>Você ainda não tem nenhum ativo.</p>
+                        <Button variant="link" asChild><Link href="/dashboard/investments/new">Adicione seu primeiro ativo</Link></Button>
+                    </TableCell>
+                </TableRow>
+            )}
+            {investments?.map((investment) => {
               const totalInvested = investment.purchasePrice * investment.quantity;
-              const currentValue = investment.currentPrice * investment.quantity;
+              // currentPrice might not be available in all scenarios, fallback to purchasePrice
+              const currentPrice = investment.currentPrice ?? investment.purchasePrice;
+              const currentValue = currentPrice * investment.quantity;
               const profit = currentValue - totalInvested;
-              const profitPercentage = (profit / totalInvested) * 100;
+              const profitPercentage = totalInvested > 0 ? (profit / totalInvested) * 100 : 0;
               
               return (
               <TableRow key={investment.id}>
@@ -113,8 +195,10 @@ export default function InvestmentsPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem>Editar</DropdownMenuItem>
-                      <DropdownMenuItem>Excluir</DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/investments/${investment.id}/edit`}>Editar</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openDeleteDialog(investment.id)}>Excluir</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -124,5 +208,21 @@ export default function InvestmentsPage() {
         </Table>
       </CardContent>
     </Card>
+     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Isso excluirá permanentemente o
+              seu ativo e removerá os dados dos nossos servidores.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
