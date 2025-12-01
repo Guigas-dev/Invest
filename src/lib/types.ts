@@ -1,6 +1,6 @@
 export type Investment = {
   id: string;
-  userId: string;
+  userId?: string;
   name: string;
   type: 'Ações' | 'FIIs' | 'Renda Fixa' | 'Criptomoedas' | 'ETFs' | 'Previdência' | 'Caixa';
   purchaseDate: string;

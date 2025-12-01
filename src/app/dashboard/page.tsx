@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Card,
   CardContent,
@@ -5,23 +7,94 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import PortfolioAllocationChart from './_components/portfolio-allocation-chart';
 import PortfolioEvolutionChart from './_components/portfolio-evolution-chart';
-import { mockInvestments, mockSnapshots, mockBenchmarkData } from '@/lib/data';
+import { mockSnapshots, mockBenchmarkData } from '@/lib/data';
 import PerformanceComparisonChart from './_components/performance-comparison-chart';
+import { useCollection, useFirebaseApp, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import type { Investment } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
-  const totalValue = mockInvestments.reduce(
-    (acc, inv) => acc + inv.currentPrice * inv.quantity,
-    0
-  );
-  const totalInvested = mockInvestments.reduce(
-    (acc, inv) => acc + inv.purchasePrice * inv.quantity,
-    0
-  );
-  const profitability = totalValue - totalInvested;
-  const profitabilityPercentage = (profitability / totalInvested) * 100;
+  const firestore = useFirestore();
+  const { user } = useUser();
+
+  const investmentsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'users', user.uid, 'investments');
+  }, [user, firestore]);
+
+  const { data: investments, isLoading } = useCollection<Investment>(investmentsQuery);
+
+  const { totalValue, totalInvested, profitability, profitabilityPercentage, totalAssets } = useMemo(() => {
+    if (!investments) {
+      return { totalValue: 0, totalInvested: 0, profitability: 0, profitabilityPercentage: 0, totalAssets: 0 };
+    }
+
+    const totalValue = investments.reduce(
+      (acc, inv) => acc + (inv.currentPrice ?? inv.purchasePrice) * inv.quantity,
+      0
+    );
+    const totalInvested = investments.reduce(
+      (acc, inv) => acc + inv.purchasePrice * inv.quantity,
+      0
+    );
+    const profitability = totalValue - totalInvested;
+    const profitabilityPercentage = totalInvested > 0 ? (profitability / totalInvested) * 100 : 0;
+
+    return { totalValue, totalInvested, profitability, profitabilityPercentage, totalAssets: investments.length };
+  }, [investments]);
+
+  if (isLoading) {
+    return (
+        <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                {[...Array(4)].map((_, i) => (
+                    <Card key={i}>
+                        <CardHeader className="pb-2">
+                            <Skeleton className="h-4 w-1/2" />
+                            <Skeleton className="h-8 w-3/4" />
+                        </CardHeader>
+                        <CardContent>
+                             <Skeleton className="h-3 w-1/3" />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <Card className="lg:col-span-4">
+                    <CardHeader>
+                        <Skeleton className="h-6 w-1/2" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-[250px] w-full" />
+                    </CardContent>
+                </Card>
+                 <Card className="lg:col-span-3">
+                    <CardHeader>
+                        <Skeleton className="h-6 w-1/2" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-[300px] w-full" />
+                    </CardContent>
+                </Card>
+             </div>
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-1/3" />
+                    <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-[300px] w-full" />
+                </CardContent>
+             </Card>
+        </div>
+    )
+  }
+
 
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
@@ -38,7 +111,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              +25% em relação ao mês passado
+              Patrimônio atualizado
             </div>
           </CardContent>
         </Card>
@@ -69,11 +142,11 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Ativos na Carteira</CardDescription>
-            <CardTitle className="text-4xl">{mockInvestments.length}</CardTitle>
+            <CardTitle className="text-4xl">{totalAssets}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              +2 adicionados este mês
+              Total de ativos cadastrados
             </div>
           </CardContent>
         </Card>
@@ -109,7 +182,13 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <PortfolioAllocationChart data={mockInvestments} />
+             {investments && investments.length > 0 ? (
+                <PortfolioAllocationChart data={investments} />
+            ) : (
+                <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                    <p>Sem dados de alocação para exibir.</p>
+                </div>
+            )}
           </CardContent>
         </Card>
       </div>
